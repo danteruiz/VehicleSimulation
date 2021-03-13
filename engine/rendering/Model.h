@@ -16,6 +16,9 @@
 #include <glm/gtx/string_cast.hpp>
 
 
+#include <Layout.h>
+
+
 struct Material;
 class Shader;
 struct Vertex
@@ -28,21 +31,30 @@ struct Vertex
     glm::vec2 texCoord { 0.0f, 0.0f };
 };
 
-
-
-struct Primitive
+enum class Topology : uint8_t
 {
-    uint32_t indexStart;
-    uint32_t vertexStart;
-    uint32_t indexCount;
-    uint32_t vertexCount;
-    uint32_t materialIndex;
+    Points = 0,
+    Lines,
+    LineStrip,
+    Triangles
+};
+
+struct SubMesh
+{
+    uint32_t m_startIndex;
+    uint32_t m_numIndices;
+    uint32_t m_materialIndex;
 };
 
 struct Mesh
 {
-    std::vector<Primitive> primitives;
-    glm::mat4 matrix;
+    std::vector<SubMesh> m_subMeshes;
+    Buffer::Pointer m_vertexBuffer;
+    Buffer::Pointer m_indexBuffer;
+
+    std::unordered_map<Slot, BufferView> m_bufferViews;
+    std::vector<Attribute> m_attributes;
+    glm::mat4 m_matrix; //maybe make this into a tranform
 };
 
 
@@ -53,15 +65,9 @@ glm::mat4 getLocalMeshMatrix(Mesh const &mesh);
 struct Model
 {
     using Pointer = std::shared_ptr<Model>;
-    std::vector<Mesh> meshes;
-
-    std::vector<Vertex> vertices;
-    std::vector<uint32_t> indices;
-    Buffer::Pointer vertexBuffer;
-    Buffer::Pointer indexBuffer;
-    bool hasIndexBuffer { false };
+    std::vector<Mesh> m_meshes;
     std::unordered_map<uint32_t, std::tuple<std::shared_ptr<Material>,
-                                            std::shared_ptr<Shader>>> materials;
+                                            std::shared_ptr<Shader>>> m_materials;
 };
 
 
@@ -84,4 +90,4 @@ private:
     std::array<Model::Pointer, ModelShape::NUM_SHAPES> m_modelShapes;
     std::unordered_map<std::string, Model::Pointer> m_models;
 };
-Model::Pointer loadModel(std::string const &file);
+//Model::Pointer loadModel(std::string const &file);

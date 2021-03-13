@@ -1,24 +1,63 @@
 #include "Buffer.h"
 
-#include "Format.h"
+#include <cstring>
+#include <cstdlib>
 
-Buffer::Buffer(Buffer::Type type, size_t size, size_t count, void* data) : m_type(type), m_size(size), m_count(count)
-{
-    glGenBuffers(1, &m_id);
-    glBindBuffer(m_type, m_id);
-    glBufferData(m_type, m_size, data, GL_DYNAMIC_DRAW);
-};
+#include <spdlog/spdlog.h>
 
-void Buffer::bind() const
+
+Buffer::~Buffer()
 {
-    glBindBuffer(m_type, m_id);
+    if (m_data)
+    {
+        delete[] m_data;
+        m_data = nullptr;
+    }
 }
 
-void Buffer::unbind() const
-{
-    glBindBuffer(m_type, 0);
+
+Buffer& Buffer::operator=(Buffer &buffer) {
+    setData(buffer.m_data, buffer.m_size);
+    return *this;
 }
 
-void Buffer::setLayout(std::shared_ptr<Layout> layout) { m_layout = layout; }
+bool Buffer::setData(void const *data, size_t size)
+{
+    if (m_data) {
+        delete[] m_data;
+        m_data = nullptr;
+    }
 
-std::shared_ptr<Layout> Buffer::getLayout() const { return m_layout; }
+    m_data = new uint8_t[size];
+    std::memcpy(m_data, data, size);
+    m_size = size;
+    m_dirty = true;
+    return static_cast<bool>(m_data);
+}
+
+bool Buffer::appendData(void const *data, size_t size) {
+    if (!m_data) {
+        return setData(data, size);
+    }
+
+    uint32_t offset = m_size;
+    resize(m_size + size);
+    std::memcpy(m_data + offset, data, size);
+    m_dirty = true;
+    return static_cast<bool>(m_data);
+}
+
+void Buffer::resize(size_t size)
+{
+    uint8_t *newData = new uint8_t[size];
+
+    std::memcpy(newData, m_data, m_size);
+    m_size = size;
+    delete[] m_data;
+    m_data = newData;
+}
+
+size_t BufferView::getStride() const
+{
+    return m_format.getDimensionSize();
+}

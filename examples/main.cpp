@@ -30,8 +30,6 @@ void initializeSpdlog()
 int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
 {
     initializeSpdlog();
-
-    spdlog::info("this is a test");
     DemoApplication demoApplication;
     demoApplication.exec();
 

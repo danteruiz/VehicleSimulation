@@ -16,6 +16,7 @@ class Buffer;
 class DebugUI;
 class Shader;
 class ModelCache;
+class Backend;
 
 struct Marker
 {
@@ -59,4 +60,5 @@ private:
     std::shared_ptr<Shader> m_brdfLut { nullptr };
     std::shared_ptr<DebugDraw> m_debugDraw { nullptr };
     std::vector<Marker> m_markers;
+    std::shared_ptr<Backend> m_backend { nullptr };
 };

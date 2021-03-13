@@ -21,7 +21,7 @@ struct Transform
 
 struct Entity
 {
-    using EntityPointer = std::shared_ptr<Entity>;
+    using Pointer = std::shared_ptr<Entity>;
     std::string name { "Entity" };
     glm::vec3 translation { 0.0f, 0.0f, 0.0f };
     glm::vec3 scale { 1.0f, 1.0f, 1.0f };

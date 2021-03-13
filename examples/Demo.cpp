@@ -28,6 +28,7 @@
 #include <math.h>
 #include <ModelPaths.h>
 #include <imgui/Imgui.h>
+#include <Backend.h>
 #include <StopWatch.h>
 
 #include "DebugUI.h"
@@ -174,39 +175,39 @@ struct MarkerVertex
 
 DebugDraw::DebugDraw()
 {
-    std::vector<MarkerVertex> positions = {
-        MarkerVertex(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(1.0f, 0.0f, 0.0f)),
-        MarkerVertex(glm::vec3(2.0f, 0.0f, 0.0f), glm::vec3(1.0f, 0.0f, 0.0f)),
-        MarkerVertex(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f)),
-        MarkerVertex(glm::vec3(0.0f, 2.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f)),
-        MarkerVertex(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f)),
-        MarkerVertex(glm::vec3(0.0f, 0.0f, 2.0f), glm::vec3(0.0f, 0.0f, 1.0f))
-    };
+    // std::vector<MarkerVertex> positions = {
+    //     MarkerVertex(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(1.0f, 0.0f, 0.0f)),
+    //     MarkerVertex(glm::vec3(2.0f, 0.0f, 0.0f), glm::vec3(1.0f, 0.0f, 0.0f)),
+    //     MarkerVertex(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f)),
+    //     MarkerVertex(glm::vec3(0.0f, 2.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f)),
+    //     MarkerVertex(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f)),
+    //     MarkerVertex(glm::vec3(0.0f, 0.0f, 2.0f), glm::vec3(0.0f, 0.0f, 1.0f))
+    // };
 
-    std::shared_ptr<Layout> layout = std::make_shared<Layout>();
-    layout->setAttribute(0, 3, sizeof(MarkerVertex), 0);
-    layout->setAttribute(1, 3, sizeof(MarkerVertex), (unsigned int) offsetof(MarkerVertex, color));
-    m_vertexBuffer = std::make_shared<Buffer>(Buffer::ARRAY, positions.size() * sizeof(MarkerVertex),
-                                              positions.size(), positions.data());
-    m_vertexBuffer->setLayout(layout);
-    m_debugPipeline = std::make_shared<Shader>(debugFragmentShader, debugVertexShader);
+    // std::shared_ptr<Layout> layout = std::make_shared<Layout>();
+    // layout->setAttribute(0, 3, sizeof(MarkerVertex), 0);
+    // layout->setAttribute(1, 3, sizeof(MarkerVertex), (unsigned int) offsetof(MarkerVertex, color));
+    // m_vertexBuffer = std::make_shared<Buffer>(Buffer::ARRAY, positions.size() * sizeof(MarkerVertex),
+    //                                           positions.size(), positions.data());
+    // m_vertexBuffer->setLayout(layout);
+    // m_debugPipeline = std::make_shared<Shader>(debugFragmentShader, debugVertexShader);
 }
 
 void DebugDraw::renderMarkers(std::vector<Marker> const  &markers, glm::mat4 const &view,
                               glm::mat4 const &projection)
 {
 
-    m_vertexBuffer->bind();
-    m_vertexBuffer->getLayout()->enableAttributes();
-    m_debugPipeline->bind();
-    m_debugPipeline->setUniformMat4("view", view);
-    m_debugPipeline->setUniformMat4("projection", projection);
-    for (auto marker : markers)
-    {
-        glm::mat4 model = marker.matrix;
-        m_debugPipeline->setUniformMat4("model", model);
-        glDrawArrays(GL_LINES, 0, 6);
-    }
+    // m_vertexBuffer->bind();
+    // m_vertexBuffer->getLayout()->enableAttributes();
+    // m_debugPipeline->bind();
+    // m_debugPipeline->setUniformMat4("view", view);
+    // m_debugPipeline->setUniformMat4("projection", projection);
+    // for (auto marker : markers)
+    // {
+    //     glm::mat4 model = marker.matrix;
+    //     m_debugPipeline->setUniformMat4("model", model);
+    //     glDrawArrays(GL_LINES, 0, 6);
+    // }
 }
 
 
@@ -221,6 +222,7 @@ DemoApplication::DemoApplication()
 
     glGenVertexArrays(1, &VAO);
     glBindVertexArray(VAO);
+    m_backend = std::make_shared<Backend>();
 
     m_debugUI = std::make_shared<DebugUI>(m_window);
     m_modelCache = std::make_shared<ModelCache>();
@@ -250,7 +252,7 @@ DemoApplication::DemoApplication()
     m_pipeline = std::make_shared<Shader>(fragmentShader, vertexShader);
     m_debugDraw = std::make_shared<DebugDraw>();
 
-    m_modelEntity.model->materials[0] = std::make_tuple(DEFAULT_MATERIAL, m_pipeline);
+    m_modelEntity.model->m_materials[0] = std::make_tuple(DEFAULT_MATERIAL, m_pipeline);
     m_convertToCubeMap = std::make_shared<Shader>(CONVERT_TO_CUBE_MAP, SKYBOX_VERT);
     m_irradiance = std::make_shared<Shader>(IRRADIANCE_CONVOLUTION, SKYBOX_VERT);
     m_filterMap = std::make_shared<Shader>(FILTER_MAP, SKYBOX_VERT);
@@ -297,82 +299,67 @@ void enableTexture(unsigned int slot, std::shared_ptr<Texture> const &texture)
     }
 }
 
-void renderModelEntity(RenderArgs const &renderArgs)
+void renderModelEntity(RenderArgs const &renderArgs, Backend *backend)
 {
     auto entity = renderArgs.modelEntity;
-    auto geometry = entity.model;
+    auto model = entity.model;
 
-    if (geometry == nullptr)
+    if (model == nullptr)
     {
         return;
     }
 
-
-    auto vertexBuffer = geometry->vertexBuffer;
-    vertexBuffer->bind();
-    vertexBuffer->getLayout()->enableAttributes();
-    if (geometry->hasIndexBuffer)
-    {
-        geometry->indexBuffer->bind();
-    }
-
     glm::mat4 entityMatrix = getMatrix(entity);
-    for (auto mesh: geometry->meshes)
+    for (auto mesh: model->m_meshes)
     {
-        glm::mat4 modelMatrix = entityMatrix * mesh.matrix;
+        glm::mat4 modelMatrix =  mesh.m_matrix;
 
-        if (mesh.primitives.size() > 0)
+        backend->setVertexBuffer(mesh.m_vertexBuffer);
+        // enable vertex attributes
+        backend->enableAttributes(mesh.m_attributes);
+        backend->setIndexBuffer(mesh.m_indexBuffer);
+        for (auto subMesh: mesh.m_subMeshes)
         {
-            for (auto primitive: mesh.primitives)
-            {
-                auto& tuple = geometry->materials[primitive.materialIndex];
-                auto& shader = std::get<1>(tuple);
-                auto& material = std::get<0>(tuple);
-                shader->bind();
-                shader->setUniformMat4("model", modelMatrix);
-                shader->setUniformMat4("projection", renderArgs.projection);
-                shader->setUniformMat4("view", renderArgs.view);
-                shader->setUniform1f("light.intensity", renderArgs.light.intensity);
-                shader->setUniform1f("light.ambient", renderArgs.light.ambient);
-                shader->setUniformVec3("light.color", renderArgs.light.color);
-                shader->setUniformVec3("light.position", renderArgs.light.position);
-                shader->setUniformVec3("cameraPosition", camera.position);
-                shader->setUniformVec3("material.color", material->albedo);
-                shader->setUniform1f("material.roughness", material->roughness);
-                shader->setUniform1f("material.metallic", material->metallic);
-                shader->setUniform1f("material.ao", material->ao);
-                shader->setUniform1i("albedoMap", 0);
-                shader->setUniform1i("normalMap", 1);
-                shader->setUniform1i("metallicMap", 2);
-                shader->setUniform1i("occlusionMap", 3);
-                shader->setUniform1i("emissiveMap", 4);
-                shader->setUniform1i("brdfLut", 5);
-                shader->setUniform1i("irradianceMap", 6);
-                shader->setUniform1i("prefilterMap", 7);
+            auto& tuple = model->m_materials[subMesh.m_materialIndex];
+            auto& shader = std::get<1>(tuple);
+            auto& material = std::get<0>(tuple);
+            shader->bind();
+            shader->setUniformMat4("model", modelMatrix);
+            shader->setUniformMat4("projection", renderArgs.projection);
+            shader->setUniformMat4("view", renderArgs.view);
+            shader->setUniform1f("light.intensity", renderArgs.light.intensity);
+            shader->setUniform1f("light.ambient", renderArgs.light.ambient);
+            shader->setUniformVec3("light.color", renderArgs.light.color);
+            shader->setUniformVec3("light.position", renderArgs.light.position);
+            shader->setUniformVec3("cameraPosition", camera.position);
+            shader->setUniformVec3("material.color", material->albedo);
+            shader->setUniform1f("material.roughness", material->roughness);
+            shader->setUniform1f("material.metallic", material->metallic);
+            shader->setUniform1f("material.ao", material->ao);
+            shader->setUniform1i("albedoMap", 0);
+            shader->setUniform1i("normalMap", 1);
+            shader->setUniform1i("metallicMap", 2);
+            shader->setUniform1i("occlusionMap", 3);
+            shader->setUniform1i("emissiveMap", 4);
+            shader->setUniform1i("brdfLut", 5);
+            shader->setUniform1i("irradianceMap", 6);
+            shader->setUniform1i("prefilterMap", 7);
 
 
-                enableTexture(0, material->albedoTexture);
-                enableTexture(1, material->normalTexture);
-                enableTexture(2, material->metallicTexture);
-                enableTexture(3, material->occlusionTexture);
-                enableTexture(4, material->emissiveTexture);
-                enableTexture(5, brdfLUTTexture);
-                enableCubeTexture(6, irradianceMap);
-                enableCubeTexture(7, prefilterMap);
+            enableTexture(0, material->albedoTexture);
+            enableTexture(1, material->normalTexture);
+            enableTexture(2, material->metallicTexture);
+            enableTexture(3, material->occlusionTexture);
+            enableTexture(4, material->emissiveTexture);
+            enableTexture(5, brdfLUTTexture);
+            enableCubeTexture(6, irradianceMap);
+            enableCubeTexture(7, prefilterMap);
 
-                if(geometry->hasIndexBuffer)
-                {
-                    glDrawElements(GL_TRIANGLES, (GLsizei) primitive.indexCount, GL_UNSIGNED_INT,
-                                   (void*) (primitive.indexStart * sizeof(GLuint)));
-                } else
-                {
-                    glDrawArrays(GL_TRIANGLES, 0, geometry->vertices.size());
-                }
-            }
-        } else {
-            //glDrawElements(GL_TRIANGLES, (GLsizei) mesh.indices.size(), GL_UNSIGNED_INT, 0);
+            glDrawElements(GL_TRIANGLES, (GLsizei) subMesh.m_numIndices, GL_UNSIGNED_INT,
+                           (void*) (subMesh.m_startIndex * sizeof(GLuint)));
+
+            auto error = glGetError();
         }
-
     }
 }
 
@@ -383,17 +370,17 @@ std::vector<Marker> getMarkers(RenderArgs const &renderArgs) {
     light.matrix = getMatrix(temp);
 
     std::vector<Marker> markers;
-    auto entity = renderArgs.modelEntity;
-    Marker entityMarker;
-    entityMarker.matrix = getMatrix(entity, false) * entity.model->meshes[0].matrix;
-    markers.push_back(entityMarker);
-    markers.push_back(light);
+    // auto entity = renderArgs.modelEntity;
+    // Marker entityMarker;
+    // entityMarker.matrix = getMatrix(entity, false) * entity.model->meshes[0].matrix;
+    // markers.push_back(entityMarker);
+    // markers.push_back(light);
 
     return markers;
 }
 
 
-void drawSkybox(const Skybox& skybox, const RenderArgs& renderArgs)
+void drawSkybox(const Skybox& skybox, const RenderArgs& renderArgs, Backend* backend)
 {
     glDepthMask(GL_FALSE);
     auto shader = skybox.shader;
@@ -402,18 +389,17 @@ void drawSkybox(const Skybox& skybox, const RenderArgs& renderArgs)
     shader->setUniformMat4("view", glm::mat4(glm::mat3(renderArgs.view)));
 
     auto& model = skybox.model;
-    auto& mesh = skybox.model->meshes[0];
-    auto& primitive = mesh.primitives[0];
-    auto vertexBuffer = model->vertexBuffer;
-    vertexBuffer->bind();
-    vertexBuffer->getLayout()->enableAttributes();
+    auto& mesh = model->m_meshes[0];
+    auto& subMesh = mesh.m_subMeshes[0];
+    backend->setVertexBuffer(mesh.m_vertexBuffer);
+    backend->enableAttributes(mesh.m_attributes);
     shader->setUniform1i("skybox", 0);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_CUBE_MAP, renderArgs.useIrradianceMap ? irradianceMap : envCubemap);
 
-    model->indexBuffer->bind();
-    glDrawElements(GL_TRIANGLES, (GLsizei) primitive.indexCount, GL_UNSIGNED_INT, (void*)
-                   (primitive.indexStart * sizeof(GLuint)));
+    backend->setIndexBuffer(mesh.m_indexBuffer);
+    glDrawElements(GL_TRIANGLES, (GLsizei) subMesh.m_numIndices, GL_UNSIGNED_INT, (void*)
+                   (subMesh.m_startIndex * sizeof(GLuint)));
     glDepthMask(GL_TRUE);
 }
 
@@ -499,10 +485,10 @@ void DemoApplication::exec()
 
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glClearColor(0.0f, 0.0f ,0.0f, 1.0f);
-        drawSkybox(m_skybox, renderArgs);
+        drawSkybox(m_skybox, renderArgs, m_backend.get());
         if (m_modelEntity.model)
         {
-            renderModelEntity(renderArgs);
+            renderModelEntity(renderArgs, m_backend.get());
         }
         //m_debugDraw->renderMarkers(getMarkers(renderArgs), view, projection);
         imgui::render();
@@ -565,18 +551,17 @@ unsigned int DemoApplication::generateEnviromentMap()
 
         //renderCube();
         auto& model = m_skybox.model;
-        auto& mesh = model->meshes[0];
-        auto& primitive = mesh.primitives[0];
-        auto vertexBuffer = model->vertexBuffer;
-        vertexBuffer->bind();
-        vertexBuffer->getLayout()->enableAttributes();
+        auto& mesh = model->m_meshes[0];
+        auto& subMesh = mesh.m_subMeshes[0];
+        m_backend->setVertexBuffer(mesh.m_vertexBuffer);
+        m_backend->enableAttributes(mesh.m_attributes);
+        m_backend->setIndexBuffer(mesh.m_indexBuffer);
 
-        model->indexBuffer->bind();
-        glDrawElements(GL_TRIANGLES, (GLsizei) primitive.indexCount, GL_UNSIGNED_INT,
-                       (void*) (primitive.indexStart * sizeof(GLuint)));
+        glDrawElements(GL_TRIANGLES, (GLsizei) subMesh.m_numIndices, GL_UNSIGNED_INT,
+                       (void*) (subMesh.m_startIndex * sizeof(GLuint)));
     }
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    //glDeleteFramebuffers(1, &frameBuffer);
+    glDeleteFramebuffers(1, &frameBuffer);
 
     return textureId;
 }
@@ -644,16 +629,16 @@ void DemoApplication::generateIBLEnvironment(std::string& texturePath)
                                GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, irradianceMap, 0);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        auto& model = m_skybox.model;
-        auto& mesh = model->meshes[0];
-        auto& primitive = mesh.primitives[0];
-        auto vertexBuffer = model->vertexBuffer;
-        vertexBuffer->bind();
-        vertexBuffer->getLayout()->enableAttributes();
+        auto &model = m_skybox.model;
+        auto  &mesh = model->m_meshes[0];
+        auto const &subMesh = mesh.m_subMeshes[0];
 
-        model->indexBuffer->bind();
-        glDrawElements(GL_TRIANGLES, (GLsizei) primitive.indexCount, GL_UNSIGNED_INT,
-                       (void*) (primitive.indexStart * sizeof(GLuint)));
+        m_backend->setVertexBuffer(mesh.m_vertexBuffer);
+        m_backend->enableAttributes(mesh.m_attributes);
+        m_backend->setIndexBuffer(mesh.m_indexBuffer);
+
+        glDrawElements(GL_TRIANGLES, (GLsizei) subMesh.m_numIndices, GL_UNSIGNED_INT,
+                       (void*) (subMesh.m_startIndex * sizeof(GLuint)));
     }
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
@@ -702,15 +687,15 @@ void DemoApplication::generateIBLEnvironment(std::string& texturePath)
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
             auto& model = m_skybox.model;
-            auto& mesh = model->meshes[0];
-            auto& primitive = mesh.primitives[0];
-            auto vertexBuffer = model->vertexBuffer;
-            vertexBuffer->bind();
-            vertexBuffer->getLayout()->enableAttributes();
+            auto &mesh = model->m_meshes[0];
+            auto const &subMesh = mesh.m_subMeshes[0];
 
-            model->indexBuffer->bind();
-            glDrawElements(GL_TRIANGLES, (GLsizei) primitive.indexCount, GL_UNSIGNED_INT,
-                           (void*) (primitive.indexStart * sizeof(GLuint)));
+            m_backend->setVertexBuffer(mesh.m_vertexBuffer);
+            m_backend->enableAttributes(mesh.m_attributes);
+            m_backend->setIndexBuffer(mesh.m_indexBuffer);
+
+            glDrawElements(GL_TRIANGLES, (GLsizei) subMesh.m_numIndices, GL_UNSIGNED_INT,
+                           (void*) (subMesh.m_startIndex * sizeof(GLuint)));
         }
     }
 
@@ -735,15 +720,15 @@ void DemoApplication::generateIBLEnvironment(std::string& texturePath)
     m_brdfLut->bind();
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    auto& mesh = quad->meshes[0];
-    auto& primitive = mesh.primitives[0];
-    auto vertexBuffer = quad->vertexBuffer;
-    vertexBuffer->bind();
-    vertexBuffer->getLayout()->enableAttributes();
+    auto& mesh = quad->m_meshes[0];
+    auto const &subMesh = mesh.m_subMeshes[0];
 
-    quad->indexBuffer->bind();
-    glDrawElements(GL_TRIANGLES, (GLsizei) primitive.indexCount, GL_UNSIGNED_INT,
-                   (void*) (primitive.indexStart * sizeof(GLuint)));
+    m_backend->setVertexBuffer(mesh.m_vertexBuffer);
+    m_backend->enableAttributes(mesh.m_attributes);
+    m_backend->setIndexBuffer(mesh.m_indexBuffer);
+
+    glDrawElements(GL_TRIANGLES, (GLsizei) subMesh.m_numIndices, GL_UNSIGNED_INT,
+                   (void*) (subMesh.m_startIndex * sizeof(GLuint)));
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
