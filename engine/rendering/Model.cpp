@@ -677,7 +677,6 @@ Model::Pointer ModelCache::loadModel(std::string const &file)
     return model;
 }
 
-
 Model::Pointer ModelCache::getModelShape(int modelCache)
 {
     return m_modelShapes[modelCache];

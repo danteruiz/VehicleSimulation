@@ -8,7 +8,8 @@ enum class Slot : uint8_t
 {
     Position = 0,
     Normal,
-    TexCoord
+    TexCoord,
+    Color
 };
 
 struct Attribute

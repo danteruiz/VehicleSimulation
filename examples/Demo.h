@@ -18,23 +18,6 @@ class Shader;
 class ModelCache;
 class Backend;
 
-struct Marker
-{
-    glm::mat4 matrix;
-};
-
-class DebugDraw
-{
-public:
-    DebugDraw();
-    void renderMarkers(std::vector<Marker> const &markers, glm::mat4 const &view,
-                       glm::mat4 const &projection);
-private:
-    std::shared_ptr<Buffer> m_vertexBuffer { nullptr };
-    std::shared_ptr<Shader> m_debugPipeline { nullptr };
-};
-
-
 class DemoApplication : public GlfwApplication
 {
 public:

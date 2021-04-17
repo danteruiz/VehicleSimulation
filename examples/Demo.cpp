@@ -175,22 +175,6 @@ struct MarkerVertex
 
 DebugDraw::DebugDraw()
 {
-    // std::vector<MarkerVertex> positions = {
-    //     MarkerVertex(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(1.0f, 0.0f, 0.0f)),
-    //     MarkerVertex(glm::vec3(2.0f, 0.0f, 0.0f), glm::vec3(1.0f, 0.0f, 0.0f)),
-    //     MarkerVertex(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f)),
-    //     MarkerVertex(glm::vec3(0.0f, 2.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f)),
-    //     MarkerVertex(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f)),
-    //     MarkerVertex(glm::vec3(0.0f, 0.0f, 2.0f), glm::vec3(0.0f, 0.0f, 1.0f))
-    // };
-
-    // std::shared_ptr<Layout> layout = std::make_shared<Layout>();
-    // layout->setAttribute(0, 3, sizeof(MarkerVertex), 0);
-    // layout->setAttribute(1, 3, sizeof(MarkerVertex), (unsigned int) offsetof(MarkerVertex, color));
-    // m_vertexBuffer = std::make_shared<Buffer>(Buffer::ARRAY, positions.size() * sizeof(MarkerVertex),
-    //                                           positions.size(), positions.data());
-    // m_vertexBuffer->setLayout(layout);
-    // m_debugPipeline = std::make_shared<Shader>(debugFragmentShader, debugVertexShader);
 }
 
 void DebugDraw::renderMarkers(std::vector<Marker> const  &markers, glm::mat4 const &view,
@@ -293,9 +277,6 @@ void enableTexture(unsigned int slot, std::shared_ptr<Texture> const &texture)
 {
     if (texture) {
         enableTexture(slot, texture->id);
-    } else
-    {
-        //std::cout << "No Texture" << std::endl;
     }
 }
 
@@ -312,7 +293,7 @@ void renderModelEntity(RenderArgs const &renderArgs, Backend *backend)
     glm::mat4 entityMatrix = getMatrix(entity);
     for (auto mesh: model->m_meshes)
     {
-        glm::mat4 modelMatrix =  mesh.m_matrix;
+        glm::mat4 modelMatrix = entityMatrix * mesh.m_matrix;
 
         backend->setVertexBuffer(mesh.m_vertexBuffer);
         // enable vertex attributes
@@ -370,17 +351,17 @@ std::vector<Marker> getMarkers(RenderArgs const &renderArgs) {
     light.matrix = getMatrix(temp);
 
     std::vector<Marker> markers;
-    // auto entity = renderArgs.modelEntity;
-    // Marker entityMarker;
-    // entityMarker.matrix = getMatrix(entity, false) * entity.model->meshes[0].matrix;
-    // markers.push_back(entityMarker);
-    // markers.push_back(light);
+    auto entity = renderArgs.modelEntity;
+    Marker entityMarker;
+    entityMarker.matrix = getMatrix(entity, false) * entity.model->meshes[0].matrix;
+    markers.push_back(entityMarker);
+    markers.push_back(light);
 
     return markers;
 }
 
 
-void drawSkybox(const Skybox& skybox, const RenderArgs& renderArgs, Backend* backend)
+void drawSkybox(Skybox const &skybox, RenderArgsconst const &renderArgs, Backend* backend)
 {
     glDepthMask(GL_FALSE);
     auto shader = skybox.shader;
@@ -503,10 +484,7 @@ unsigned int DemoApplication::generateEnviromentMap()
     unsigned int frameBuffer;
     unsigned int renderBuffer;
     glGenFramebuffers(1, &frameBuffer);
-    //glGenRenderbuffers(1, &renderBuffer);
     glBindFramebuffer(GL_FRAMEBUFFER, frameBuffer);
-    //glBindRenderbuffer(GL_RENDERBUFFER, renderBuffer);
-    //glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, 1080, 1080);
     glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, 0);
 
 

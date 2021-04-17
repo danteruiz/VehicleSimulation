@@ -57,8 +57,6 @@ struct Mesh
     glm::mat4 m_matrix; //maybe make this into a tranform
 };
 
-
-
 glm::mat4 getLocalMeshMatrix(Mesh const &mesh);
 
 
