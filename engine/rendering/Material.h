@@ -9,17 +9,6 @@ struct Material
 {
     using Pointer = std::shared_ptr<Material>;
 
-    enum MapKey
-    {
-        NONE = 0,
-        ALBEDO_MAP,
-        NORMAL_MAP,
-        OCCLUSION_MAP,
-        EMISSIVE_MAP,
-        METALLIC_MAP,
-        NUM_FLAGS
-    };
-
     glm::vec3 albedo { 1.0f, 1.0f, 1.0f};
     glm::vec3 emissive { 0.0f, 0.0f, 0.0f };
     float roughness { 1.0f };

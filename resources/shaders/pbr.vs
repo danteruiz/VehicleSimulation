@@ -13,8 +13,8 @@ out vec3 vPosition;
 out vec2 TexCoord;
 void main() {
     mat3 modelMatrix = mat3(model);
-    vPosition = modelMatrix * aPos;
+    vPosition = aPos;
     vNormal = normalize(inverse(modelMatrix) * aNormal);
     TexCoord = aTexCoord;
-    gl_Position = projection * view * model * vec4(aPos, 1.0);
+    gl_Position = projection * view * model * vec4(aPos, 1.0f);
 }

@@ -1,22 +1,34 @@
 #include "Format.h"
 
-#include "GL.h"
+constexpr int TYPE_SIZE[Type::TypeNum] = {
+    4,
+    2,
+    4,
+    2,
+    1,
+    4,
+    2,
+    1
+};
 
-#include <assert.h>
+constexpr int DIMENSION_SIZE[Dimension::DimensionNum] = {
+    1,
+    2,
+    3,
+    4
+};
 
-void Layout::setAttribute(unsigned int slot, unsigned int count, unsigned int stride, unsigned int offset)
+uint32_t Format::getSize() const
 {
-    m_attributes.push_back(Attribute(slot, count, stride, offset));
+    return TYPE_SIZE[m_type];
 }
 
-void Layout::enableAttributes() const
+uint32_t Format::getStride() const
 {
-    assert(m_attributes.size() > 0);
-    for (const auto& attribute : m_attributes)
-    {
-        glEnableVertexAttribArray(attribute.slot);
-        glVertexAttribPointer(attribute.slot, attribute.count,
-                              GL_FLOAT, GL_FALSE, attribute.stride,
-                              (void*)attribute.offset);
-    }
+    return TYPE_SIZE[m_type] * DIMENSION_SIZE[m_dimension];
+}
+
+uint32_t Format::getDimensionSize() const
+{
+    return DIMENSION_SIZE[m_dimension];
 }

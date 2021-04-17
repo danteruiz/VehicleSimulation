@@ -3,33 +3,6 @@
 #include <vector>
 #include <cstdint>
 
-enum Slots
-{
-    POSITION = 0,
-    NORMAL,
-    TEXCOORD
-};
-
-struct Attribute
-{
-    Attribute(unsigned int _slot, unsigned int _count, unsigned  int _stride, unsigned int _offset)
-        : slot(_slot), count(_count), stride(_stride), offset(_offset) {}
-    unsigned int slot { 0 };
-    unsigned int count { 0 };
-    unsigned int stride { 0 };
-    unsigned int offset { 0 };
-};
-
-class Layout
-{
-public:
-    void setAttribute(unsigned int slot, unsigned int count, unsigned int stride, unsigned int offset);
-    void enableAttributes() const;
-private:
-    std::vector<Attribute> m_attributes;
-};
-
-
 enum Type : uint8_t
 {
     Float = 0,
@@ -39,39 +12,36 @@ enum Type : uint8_t
     Int8,
     UInt32,
     UInt16,
-    UInt8
-};
-
-enum Element : uint8_t
-{
-    RB = 0,
-    RGB,
-    RGBA,
-    XY,
-    XYZ,
-    XYZW,
-    Quat,
-    UV
+    UInt8,
+    TypeNum
 };
 
 enum Dimension : uint8_t
 {
-    Scalar,
+    Scalar = 0,
     Vec2,
     Vec3,
-    Vec4
+    Vec4,
+    DimensionNum
 };
 
 class Format
 {
 public:
-    Format() : m_type(Type::Int32), m_element(Element::XYZ), m_dimension(Dimension::Scalar) {}
-    Format(Type type, Element element, Dimension dimension) :
-        m_type(type), m_element(element), m_dimension(dimension) {}
+    Format() : m_type(Type::Int32), m_dimension(Dimension::Scalar) {}
+    Format(Type type, Dimension dimension) :
+        m_type(type), m_dimension(dimension) {}
+
+    Type getType() const { return m_type; }
+    Dimension getDimension() const { return m_dimension; }
+    uint32_t getSize() const;
+    uint32_t getStride() const;
+    uint32_t getDimensionSize() const;
 
 private:
     Type m_type;
-    Element m_element;
     Dimension m_dimension;
 };
+
+
 

@@ -1,30 +1,40 @@
 #pragma once
 
-#include "GL.h"
 #include <memory>
+#include <cstdint>
 
-class Layout;
+#include "Format.h"
+#include "Resource.h"
+
 class Buffer
 {
 public:
     using Pointer = std::shared_ptr<Buffer>;
-    enum Type
-    {
-        ARRAY = GL_ARRAY_BUFFER,
-        ELEMENT = GL_ELEMENT_ARRAY_BUFFER
-    };
 
-    Buffer(Buffer::Type type, size_t size, size_t count, void *data);
+    Buffer() = default;
+    ~Buffer();
 
-    void bind() const;
-    void unbind() const;
-    void setLayout(std::shared_ptr<Layout> layout);
-    std::shared_ptr<Layout>  getLayout() const;
-    unsigned int getID() { return m_id; }
-private:
-    unsigned int m_id { 0 };
+    Buffer& operator=(Buffer &buffer);
+    bool setData(void const *data, size_t size);
+    bool appendData(void const *data, size_t size);
+
+    void resize(size_t size);
+
+    std::unique_ptr<gpu::Resource> m_gpuResource { nullptr };
     size_t m_size { 0 };
-    size_t m_count { 0 };
-    Buffer::Type m_type;
-    std::shared_ptr<Layout> m_layout;
+    uint8_t *m_data { nullptr };
+    bool m_dirty { false };
+};
+
+
+struct BufferView
+{
+    BufferView(size_t offset, size_t size, Format format) :
+        m_offset(offset), m_size(size), m_format(format) {}
+
+    size_t getStride() const;
+
+    size_t m_offset;
+    size_t m_size;
+    Format m_format;
 };

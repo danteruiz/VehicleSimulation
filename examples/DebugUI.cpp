@@ -24,8 +24,10 @@ DebugUI::~DebugUI()
     imgui::uninitialize();
 }
 
-void DebugUI::show(Entity &entity, Light &light, float deltaTime, std::function<void()> compileShader,
-                   std::function<void(std::string, bool)> loadNewModel, std::function<void(std::string)> generateIBLEnvironments)
+void DebugUI::show(Entity &entity, Light &light, float deltaTime,
+                   std::function<void()> compileShader,
+                   std::function<void(std::string, bool)> loadNewModel,
+                   std::function<void(std::string)> generateIBLEnvironments)
 {
     m_lightColor[0] = light.color.x;
     m_lightColor[1] = light.color.y;
@@ -132,14 +134,14 @@ void DebugUI::show(Entity &entity, Light &light, float deltaTime, std::function<
     if (entity.model) {
         std::vector<std::string> materialNames;
 
-        for (auto& entry : entity.model->materials)
+        for (auto& entry : entity.model->m_materials)
         {
             materialNames.push_back(std::to_string(entry.first));
         }
 
         imgui::Combo("material list", &m_materialIndex, materialNames);
 
-        auto &material = std::get<0>(entity.model->materials[m_materialIndex]);
+        auto &material = std::get<0>(entity.model->m_materials[m_materialIndex]);
         auto color = material->albedo;
         float entityColor[3] = { color.x, color.y, color.z};
         ImGui::ColorEdit3("entity color", entityColor);

@@ -4,6 +4,7 @@
 #include "Shader.h"
 #include "Material.h"
 #include "Format.h"
+#include "Layout.h"
 #include "Texture.h"
 
 #define TINYGLTF_IMPLEMENTATION
@@ -25,6 +26,14 @@ static const std::string shaderPath = std::string(RESOURCE_PATH) + "shaders/";
 static const std::string VERTEX_SHADER = shaderPath + "pbr.vs";
 static const std::string FRAGMENT_SHADER = shaderPath + "pbr.fs";
 
+enum class GLTFAttributeType : uint8_t
+{
+    Position = 0,
+    Normal,
+    TexCoord,
+    Invalid
+};
+
 std::shared_ptr<Texture> loadMaterialTexture(tinygltf::Model &model, int index,
                                              std::string materialName,
                                              std::string& defines)
@@ -43,102 +52,89 @@ std::shared_ptr<Texture> loadMaterialTexture(tinygltf::Model &model, int index,
 }
 
 template <typename T>
-void processIndexData(T const *gltfIndices, std::vector<uint32_t>& indices,
-                      size_t count, size_t startVertexIndex)
+void processIndexData(T const *gltfIndices, std::vector<uint32_t> &indices,
+                      size_t count, size_t startIndex)
 {
+
+    uint32_t max = 0;
     for (size_t index = 0; index < count; index++)
     {
-        uint32_t indice = (uint32_t) gltfIndices[index]
-            + (uint32_t) startVertexIndex;
+        uint32_t indice = static_cast<uint32_t>(gltfIndices[index])
+            + static_cast<uint32_t>(startIndex);
 
+        max = std::max(indice, max);
         indices.push_back(indice);
     }
 }
 
-Mesh processMesh(std::vector<Vertex> &vertices, std::vector<uint32_t> &indices,
-                 tinygltf::Model &model, tinygltf::Mesh& gltfMesh)
+GLTFAttributeType getGLTFAttributeFromString(std::string const &attribute)
 {
-    //    spdlog::debug("Model::processMesh");
+    if (attribute == "POSITION") {
+        return GLTFAttributeType::Position;
+    } else if (attribute == "NORMAL") {
+        return GLTFAttributeType::Normal;
+    } else if (attribute == "TEXCOORD_0") {
+        return GLTFAttributeType::TexCoord;
+    }
+
+    return GLTFAttributeType::Invalid;
+}
+
+void addAttributesToArray(int attributeIndex, std::vector<float> &buffer, tinygltf::Model &gltfModel)
+{
+    tinygltf::Accessor const &accessor = gltfModel.accessors[attributeIndex];
+    tinygltf::BufferView const &bufferView = gltfModel.bufferViews[accessor.bufferView];
+    tinygltf::Buffer &gltfBuffer = gltfModel.buffers[bufferView.buffer];
+
+    float const *bufferData = reinterpret_cast<float*>(&gltfBuffer.data[bufferView.byteOffset +
+                                                                        accessor.byteOffset]);
+
+    int numComponents = tinygltf::GetNumComponentsInType(accessor.type);
+    size_t size = accessor.count * numComponents;
+    for (size_t index = 0; index < size; ++index)
+    {
+        buffer.push_back(bufferData[index]);
+    }
+}
+
+Mesh processMesh(tinygltf::Model &model, tinygltf::Mesh& gltfMesh)
+{
     Mesh mesh;
+
+    std::vector<float> positions;
+    std::vector<float> normals;
+    std::vector<float> texCoords;
+    std::vector<uint32_t> indices;
+
     for (size_t i = 0; i < gltfMesh.primitives.size(); ++i)
     {
-
-        Primitive prim;
-        prim.indexStart = static_cast<uint32_t>(indices.size());
-        prim.vertexStart = static_cast<uint32_t>(vertices.size());
-        //std::cout << "vertex start: " << prim.vertexStart << std::endl;
+        SubMesh subMesh;
+        subMesh.m_startIndex  = static_cast<uint32_t>(indices.size());
         tinygltf::Primitive primitive = gltfMesh.primitives[i];
 
-
-        auto attributes = primitive.attributes;
-        auto positionIndex = attributes["POSITION"];
-        auto normalIndex = attributes["NORMAL"];
-        auto texCoordIndex = attributes["TEXCOORD_0"];
-
-        const tinygltf::Accessor &positionAccess =
-            model.accessors[positionIndex];
-
-        const tinygltf::Accessor &normalAccess =
-            model.accessors[normalIndex];
-
-        const tinygltf::Accessor &texCoordAccess =
-            model.accessors[texCoordIndex];
-
-        tinygltf::BufferView const &positionBufferView =
-            model.bufferViews[positionAccess.bufferView];
-
-        tinygltf::BufferView const &normalBufferView =
-            model.bufferViews[normalAccess.bufferView];
-
-        tinygltf::BufferView const &texCoordBufferView =
-            model.bufferViews[texCoordAccess.bufferView];
-
-        tinygltf::Buffer &positionBuffer =
-            model.buffers[positionBufferView.buffer];
-
-        tinygltf::Buffer &normalBuffer =
-            model.buffers[normalBufferView.buffer];
-
-        tinygltf::Buffer &texCoordBuffer =
-            model.buffers[texCoordBufferView.buffer];
-
-
-        int positionBufferIndex = positionBufferView.byteOffset
-            + positionAccess.byteOffset;
-
-        float* const positionData =
-            reinterpret_cast<float*> (&positionBuffer.data[positionBufferIndex]);
-
-        float* const normalData = reinterpret_cast<float*>
-            (&normalBuffer.data[normalBufferView.byteOffset
-                                + normalAccess.byteOffset]);
-
-        float* const texCoordData = reinterpret_cast<float*>
-            (&texCoordBuffer.data[texCoordBufferView.byteOffset
-                                  + texCoordAccess.byteOffset]);
-
-
-        for (size_t i = 0; i < positionAccess.count; ++i)
+        for (auto attribute : primitive.attributes)
         {
-            size_t posOffset = i *  3;
-            glm::vec3 pos(positionData[posOffset + 0],
-                          positionData[posOffset + 1],
-                          positionData[posOffset + 2]);
+            GLTFAttributeType attributeType = getGLTFAttributeFromString(attribute.first);
+            int attributeIndex = attribute.second;
 
-            size_t normOffset = i * 3;
-            glm::vec3 norm(normalData[normOffset + 0],
-                           normalData[normOffset + 1],
-                           normalData[normOffset + 2]);
+            switch (attributeType)
+            {
+                case GLTFAttributeType::Position:
+                    addAttributesToArray(attributeIndex, positions, model);
+                    break;
 
-            size_t texOffset = i * 2;
-            glm::vec2 texCoord(texCoordData[texOffset + 0],
-                               texCoordData[texOffset + 1]);
+                case GLTFAttributeType::Normal:
+                    addAttributesToArray(attributeIndex, normals, model);
+                    break;
 
-            vertices.push_back({pos, norm, texCoord});
+                case GLTFAttributeType::TexCoord:
+                    addAttributesToArray(attributeIndex, texCoords, model);
+                    break;
+
+                default:
+                    break;
+            }
         }
-
-        prim.vertexCount = static_cast<uint32_t>(positionAccess.count);
-
 
         if (primitive.indices >= 0)
         {
@@ -156,49 +152,71 @@ Mesh processMesh(std::vector<Vertex> &vertices, std::vector<uint32_t> &indices,
             switch (indexAccessor.componentType)
             {
                 case TINYGLTF_PARAMETER_TYPE_UNSIGNED_BYTE:
-                    processIndexData<uint8_t>(reinterpret_cast<uint8_t*>(indexData)
-                                              ,indices, indexAccessor.count,
-                                              prim.vertexStart);
+                    processIndexData<uint8_t>(reinterpret_cast<uint8_t*>(indexData), indices,
+                                              indexAccessor.count, subMesh.m_startIndex);
                     break;
 
                 case TINYGLTF_PARAMETER_TYPE_UNSIGNED_SHORT:
                     processIndexData<uint16_t>(reinterpret_cast<uint16_t*>(indexData), indices,
-                                               indexAccessor.count, prim.vertexStart);
+                                               indexAccessor.count, subMesh.m_startIndex);
                     break;
 
                 case TINYGLTF_PARAMETER_TYPE_UNSIGNED_INT:
                 case TINYGLTF_COMPONENT_TYPE_FLOAT:
                 case TINYGLTF_COMPONENT_TYPE_INT:
                     processIndexData<uint32_t>(reinterpret_cast<uint32_t*>(indexData), indices,
-                                               indexAccessor.count, prim.vertexStart);
+                                               indexAccessor.count, subMesh.m_startIndex);
                     break;
 
                 default:
                     std::cout << "UNSUPPORTED TYPE: " << indexAccessor.componentType << std::endl;
             }
-            prim.indexCount = static_cast<uint32_t>(indexAccessor.count);
+            subMesh.m_numIndices = static_cast<uint32_t>(indexAccessor.count);
         }
-        prim.materialIndex = primitive.material;
-        mesh.primitives.push_back(prim);
+        subMesh.m_materialIndex = primitive.material;
+        mesh.m_subMeshes.push_back(subMesh);
     }
+
+    mesh.m_vertexBuffer = std::make_shared<Buffer>();
+    mesh.m_vertexBuffer->setData(reinterpret_cast<uint8_t*>(&positions[0]),
+                                 sizeof(float) * positions.size());
+
+    mesh.m_vertexBuffer->appendData(reinterpret_cast<uint8_t*>(&normals[0]),
+                                    sizeof(float) * normals.size());
+
+    mesh.m_vertexBuffer->appendData(reinterpret_cast<uint8_t*>(&texCoords[0]),
+                                    sizeof(float) * texCoords.size());
+
+    mesh.m_indexBuffer = std::make_shared<Buffer>();
+
+    mesh.m_indexBuffer->setData(indices.data(),
+                                   sizeof(uint32_t) * indices.size());
+
+    Attribute positionAttribute(Slot::Position, {Type::Float, Dimension::Vec3}, 0);
+    Attribute normalAttribute(Slot::Normal, {Type::Float, Dimension::Vec3}, positions.size());
+    Attribute texCoordAttribute(Slot::TexCoord, {Type::Float, Dimension::Vec2},
+                                normalAttribute.m_offset + normals.size());
+
+    mesh.m_attributes = {
+        positionAttribute,
+        normalAttribute,
+        texCoordAttribute
+    };
 
     return mesh;
 }
 
 
 
-glm::mat4 calculateLocalMatrix(glm::mat4& matrix, glm::vec3& translation, glm::vec3& scale,
+glm::mat4 calculateLocalMatrix(glm::vec3& translation, glm::vec3& scale,
                                glm::quat& rotation)
 {
     return glm::translate(glm::mat4(1.0f), translation) * glm::toMat4(rotation)
-        * glm::scale(glm::mat4(1.0f), scale);// * matrix;
+        * glm::scale(glm::mat4(1.0f), scale);//* matrix;
 }
 
-void processNode(tinygltf::Model &gltfModel, tinygltf::Node &node, std::shared_ptr<Model> &model,
-                 glm::mat4 parentMatrix = glm::mat4(1.0f))
+glm::mat4 extractMatrix(tinygltf::Node &node, glm::mat4 const &parentMatrix)
 {
-    glm::mat4 finalMatrix;
-
     glm::mat4 matrix(1.0f);
     if (node.matrix.size() == 16)
     {
@@ -223,15 +241,19 @@ void processNode(tinygltf::Model &gltfModel, tinygltf::Node &node, std::shared_p
         scale = glm::make_vec3(node.scale.data());
     }
 
+    return parentMatrix * calculateLocalMatrix(translation, scale, rotation);
+}
 
-    finalMatrix = parentMatrix * calculateLocalMatrix(matrix, translation, scale, rotation);
+void processNode(tinygltf::Model &gltfModel, tinygltf::Node &node, std::shared_ptr<Model> &model,
+                 glm::mat4 parentMatrix = glm::mat4(1.0f))
+{
+    glm::mat4 finalMatrix = extractMatrix(node, parentMatrix);
 
     if ((node.mesh >= 0) && (node.mesh < (int) gltfModel.meshes.size()))
     {
-        Mesh mesh = processMesh(model->vertices, model->indices, gltfModel,
-                                gltfModel.meshes[node.mesh]);
-        mesh.matrix = finalMatrix;
-        model->meshes.push_back(mesh);
+        Mesh mesh = processMesh(gltfModel, gltfModel.meshes[node.mesh]);
+        mesh.m_matrix = finalMatrix;
+        model->m_meshes.push_back(mesh);
     }
 
     for (size_t i = 0; i < node.children.size(); ++i)
@@ -247,11 +269,9 @@ void getShadersAndMaterials(std::shared_ptr<Model>& model, tinygltf::Model gltfM
     {
         const auto& gltfMaterial = gltfModel.materials[index];
         for (auto ext: gltfMaterial.extensions) {
-            std::cout << "externals" << ext.first << std::endl;
-            //  spdlog::debug("model: externals {}", ext.first);
+            spdlog::debug("model: extensino {}", ext.first);
         }
 
-        //        spdlog::debug("material name: {}", gltfMaterial.name);
         std::string defines;
         std::shared_ptr<Material> material = std::make_shared<Material>();
         auto pbrMaterial = gltfMaterial.pbrMetallicRoughness;
@@ -283,20 +303,18 @@ void getShadersAndMaterials(std::shared_ptr<Model>& model, tinygltf::Model gltfM
         std::shared_ptr<Shader> shader = std::make_shared<Shader>(FRAGMENT_SHADER, VERTEX_SHADER,
                                                                   defines);
         auto tuple = std::make_tuple(material, shader);
-        model->materials[(uint32_t) index] = tuple;
+        model->m_materials[(uint32_t) index] = tuple;
     }
 }
 
-Model::Pointer loadGLTFModel(std::string const &file)
+tinygltf::Model loadGLTFModelFile(std::string const &file, bool &success)
 {
-
-    ChronoStopWatch sw("loadModel");
-    tinygltf::Model model;
+    tinygltf::Model gltfModel;
     tinygltf::TinyGLTF loader;
     std::string err;
     std::string warn;
 
-    bool ret = loader.LoadASCIIFromFile(&model, &err, &warn, file);
+    success = loader.LoadASCIIFromFile(&gltfModel, &err, &warn, file);
 
     if (!warn.empty())
     {
@@ -308,44 +326,31 @@ Model::Pointer loadGLTFModel(std::string const &file)
         std::cout << "Err: " << err << std::endl;
     }
 
+    return gltfModel;
+}
 
-    if (!ret)
+
+Model::Pointer loadModelFromFile(std::string const &file)
+{
+    bool success;
+
+    tinygltf::Model gltfModel= loadGLTFModelFile(file, success);
+
+    if (!success)
     {
-        std::cout << "Failed to parse GlTF" << std::endl;
         return nullptr;
     }
 
-
-    Model::Pointer geometry = std::make_shared<Model>();
-    const tinygltf::Scene &scene = model.scenes[model.defaultScene];
+    Model::Pointer model = std::make_shared<Model>();
+    const tinygltf::Scene &scene = gltfModel.scenes[gltfModel.defaultScene];
     for (size_t i = 0; i < scene.nodes.size(); ++i)
     {
-        processNode(model, model.nodes[scene.nodes[i]], geometry);
+        processNode(gltfModel, gltfModel.nodes[scene.nodes[i]], model);
     }
 
-    getShadersAndMaterials(geometry, model);
+    getShadersAndMaterials(model, gltfModel);
 
-    std::shared_ptr<Layout> layout = std::make_shared<Layout>();
-    layout->setAttribute(Slots::POSITION, 3, sizeof(Vertex), 0);
-    layout->setAttribute(Slots::NORMAL, 3, sizeof(Vertex), (unsigned int) offsetof(Vertex, normal));
-    layout->setAttribute(Slots::TEXCOORD, 2, sizeof(Vertex),
-                         (unsigned int) offsetof(Vertex, texCoord));
-    auto& vertices = geometry->vertices;
-    auto& indices = geometry->indices;
-
-    geometry->vertexBuffer = std::make_shared<Buffer>(Buffer::ARRAY, vertices.size() *
-                                                      sizeof(Vertex), vertices.size(),
-                                                      vertices.data());
-    geometry->hasIndexBuffer = (indices.size() > 0);
-    if (geometry->hasIndexBuffer)
-    {
-        geometry->indexBuffer = std::make_shared<Buffer>(Buffer::ELEMENT, indices.size() *
-                                                         sizeof(uint32_t), indices.size(),
-                                                         indices.data());
-    }
-    geometry->vertexBuffer->setLayout(layout);
-
-    return geometry;
+    return model;
 }
 
 static float const  PI = 3.14159265359;
@@ -354,11 +359,10 @@ static int const X_SEGMENTS = 64.0f;
 static int const Y_SEGMENTS = 64.0f;
 Model::Pointer buildSphere()
 {
-    Model::Pointer geometry = std::make_shared<Model>();
+    Model::Pointer model = std::make_shared<Model>();
 
-    auto& vertices = geometry->vertices;
-    auto& indices = geometry->indices;
-    Mesh mesh;
+    std::vector<float> positions;
+    std::vector<float> normals;
 
     for (int y = 0; y <= Y_SEGMENTS; ++y)
     {
@@ -371,11 +375,17 @@ Model::Pointer buildSphere()
             float yPos = std::cos(ySegment * PI);
             float zPos = std::sin(xSegment * 2.0f * PI) * std::sin(ySegment * PI);
 
-            Vertex vertex({xPos, yPos, zPos}, {xPos, yPos, zPos});
-            vertices.push_back(vertex);
+            positions.push_back(xPos);
+            positions.push_back(yPos);
+            positions.push_back(zPos);
+
+            normals.push_back(xPos);
+            normals.push_back(yPos);
+            normals.push_back(zPos);
         }
     }
 
+    std::vector<int> indices;
     for (int i = 0; i < Y_SEGMENTS; ++i)
     {
         int k1 = i * (X_SEGMENTS + 1);
@@ -387,92 +397,137 @@ Model::Pointer buildSphere()
             {
                 indices.push_back(k1);
                 indices.push_back(k2);
-                indices.push_back(k1 + 1);
+                indices.push_back(k1 +1);
             }
 
             if (i != (Y_SEGMENTS -1))
             {
-                indices.push_back(k1 + 1);
+                indices.push_back(k1 +1);
                 indices.push_back(k2);
-                indices.push_back(k2 +1);
+                indices.push_back(k2 + 1);
             }
         }
     }
 
-    Primitive primitive;
-    primitive.indexStart = 0;
-    primitive.vertexStart = 0;
-    primitive.vertexCount = static_cast<uint32_t>(vertices.size());
-    primitive.indexCount =  static_cast<uint32_t>(indices.size());
-    primitive.materialIndex = 0;
 
-    mesh.primitives.push_back(primitive);
+    Mesh mesh;
+    mesh.m_vertexBuffer = std::make_shared<Buffer>();
+    mesh.m_indexBuffer = std::make_shared<Buffer>();
 
-    std::shared_ptr<Layout> layout = std::make_shared<Layout>();
-    layout->setAttribute(Slots::POSITION, 3, sizeof(Vertex), 0);
-    layout->setAttribute(Slots::NORMAL, 3, sizeof(Vertex), (unsigned int) offsetof(Vertex, normal));
+    Buffer::Pointer &vertexBuffer = mesh.m_vertexBuffer;
+    vertexBuffer->setData(reinterpret_cast<uint8_t const *>(&positions[0]),
+                          sizeof(float) * positions.size());
 
-    geometry->vertexBuffer = std::make_shared<Buffer>(Buffer::ARRAY, geometry->vertices.size()
-                                                      * sizeof(Vertex), geometry->vertices.size(),
-                                                      geometry->vertices.data());
-    geometry->vertexBuffer->setLayout(layout);
-    geometry->indexBuffer = std::make_shared<Buffer>(Buffer::ELEMENT, geometry->indices.size()
-                                                     * sizeof(int), geometry->indices.size(),
-                                                     geometry->indices.data());
+    vertexBuffer->appendData(reinterpret_cast<uint8_t const *>(&normals[0]),
+                           sizeof(float) * normals.size());
 
-    //geometry->materials["default"] = std::make_shared<Material>();
+    mesh.m_indexBuffer->setData(reinterpret_cast<uint8_t const*>(&indices[0]),
+                                sizeof(int) * indices.size());
+    SubMesh subMesh;
 
-    geometry->meshes.push_back(mesh);
-    geometry->hasIndexBuffer = true;
-    return geometry;
+    subMesh.m_startIndex = 0;
+    subMesh.m_numIndices = indices.size();
+    subMesh.m_materialIndex = 0;
+    mesh.m_subMeshes.push_back(subMesh);
+
+    Attribute positionAttribute(Slot::Position, {Type::Float, Dimension::Vec3}, 0);
+    Attribute normalAttribute(Slot::Normal, {Type::Float, Dimension::Vec3}, positions.size());
+    mesh.m_attributes = {
+        positionAttribute,
+        normalAttribute
+    };
+
+    model->m_meshes.push_back(mesh);
+
+    return model;
 }
 
 Model::Pointer buildCube()
 {
-    Model::Pointer geometry = std::make_shared<Model>();
+    Model::Pointer model = std::make_shared<Model>();
 
 
-    Mesh mesh;
-    geometry->vertices = {
+    // Mesh mesh;
+    std::vector<float> positions = {
         // right side 0 - 3
-        Vertex(glm::vec3(1.0f, 1.0f, 1.0f), glm::vec3(1.0f, 0.0f, 0.0f)),
-        Vertex(glm::vec3(1.0f, 1.0f, -1.0f), glm::vec3(1.0f, 0.0f, 0.0f)),
-        Vertex(glm::vec3(1.0f, -1.0f, 1.0f), glm::vec3(1.0f, 0.0f, 0.0f)),
-        Vertex(glm::vec3(1.0f, -1.0f, -1.0f), glm::vec3(1.0f, 0.0f, 0.0f)),
+        1.0f, 1.0f, 1.0f,
+        1.0f, 1.0f, -1.0f,
+        1.0f, -1.0f, 1.0f,
+        1.0f, -1.0f, -1.0f,
 
         //top side 4 - 7
-        Vertex(glm::vec3(1.0f, 1.0f, 1.0f), glm::vec3(0.0f, 1.0f, 0.0f)),
-        Vertex(glm::vec3(1.0f, 1.0f, -1.0f), glm::vec3(0.0f, 1.0f, 0.0f)),
-        Vertex(glm::vec3(-1.0f, 1.0f, -1.0f), glm::vec3(0.0f, 1.0f, 0.0f)),
-        Vertex(glm::vec3(-1.0f, 1.0f, 1.0f), glm::vec3(0.0f, 1.0f, 0.0f)),
+        1.0f, 1.0f, 1.0f,
+        1.0f, 1.0f, -1.0f,
+        -1.0f, 1.0f, -1.0f,
+        -1.0f, 1.0f, 1.0f,
 
         //bottom side 8 - 11
-        Vertex(glm::vec3(1.0f, -1.0f, 1.0f), glm::vec3(0.0f, -1.0f, 0.0f)),
-        Vertex(glm::vec3(1.0f, -1.0f, -1.0f), glm::vec3(0.0f, -1.0f, 0.0f)),
-        Vertex(glm::vec3(-1.0f, -1.0f, -1.0f), glm::vec3(0.0f, -1.0f, 0.0f)),
-        Vertex(glm::vec3(-1.0f, -1.0f, 1.0f), glm::vec3(0.0f, -1.0f, 0.0f)),
+        1.0f, -1.0f, 1.0f,
+        1.0f, -1.0f, -1.0f,
+        -1.0f, -1.0f, -1.0f,
+        -1.0f, -1.0f, 1.0f,
 
         // left 12 - 15
-        Vertex(glm::vec3(-1.0f, 1.0f, 1.0f), glm::vec3(-1.0f, 0.0f, 0.0f)),
-        Vertex(glm::vec3(-1.0f, 1.0f, -1.0f), glm::vec3(-1.0f, 0.0f, 0.0f)),
-        Vertex(glm::vec3(-1.0f, -1.0f, 1.0f), glm::vec3(-1.0f, 0.0f, 0.0f)),
-        Vertex(glm::vec3(-1.0f, -1.0f, -1.0f), glm::vec3(-1.0f, 0.0f, 0.0f)),
+        -1.0f, 1.0f, 1.0f,
+        -1.0f, 1.0f, -1.0f,
+        -1.0f, -1.0f, 1.0f,
+        -1.0f, -1.0f, -1.0f,
 
         // front 16 - 19
-        Vertex(glm::vec3(1.0f, 1.0f, -1.0f), glm::vec3(0.0f, 0.0, -1.0f)),
-        Vertex(glm::vec3(1.0f, -1.0f, -1.0f), glm::vec3(0.0f, 0.0, -1.0f)),
-        Vertex(glm::vec3(-1.0f, -1.0f, -1.0f), glm::vec3(0.0f, 0.0, -1.0f)),
-        Vertex(glm::vec3(-1.0f, 1.0f, -1.0f), glm::vec3(0.0f, 0.0, -1.0f)),
+        1.0f, 1.0f, -1.0f,
+        1.0f, -1.0f, -1.0f,
+        -1.0f, -1.0f, -1.0f,
+        -1.0f, 1.0f, -1.0f,
 
         //back 20 - 23
-        Vertex(glm::vec3(1.0f, 1.0f, 1.0f), glm::vec3(0.0f, 0.0f, 1.0f)),
-        Vertex(glm::vec3(1.0f, -1.0f, 1.0f), glm::vec3(0.0f, 0.0f, 1.0f)),
-        Vertex(glm::vec3(-1.0f, -1.0f, 1.0f), glm::vec3(0.0f, 0.0f, 1.0f)),
-        Vertex(glm::vec3(-1.0f, 1.0f, 1.0f), glm::vec3(0.0f, 0.0f, 1.0f))
+        1.0f, 1.0f, 1.0f,
+        1.0f, -1.0f, 1.0f,
+        -1.0f, -1.0f, 1.0f,
+        -1.0f, 1.0f, 1.0f,
     };
 
 
-    geometry->indices = {
+
+    std::vector<float> normals = {
+        // right side 0 - 3
+        1.0f, 0.0f, 0.0f,
+        1.0f, 0.0f, 0.0f,
+        1.0f, 0.0f, 0.0f,
+        1.0f, 0.0f, 0.0f,
+
+        //top side 4 - 7
+        0.0f, 1.0f, 0.0f,
+        0.0f, 1.0f, 0.0f,
+        0.0f, 1.0f, 0.0f,
+        0.0f, 1.0f, 0.0f,
+
+        //bottom side 8 - 11
+        0.0f, -1.0f, 0.0f,
+        0.0f, -1.0f, 0.0f,
+        0.0f, -1.0f, 0.0f,
+        0.0f, -1.0f, 0.0f,
+
+        // left 12 - 15
+        -1.0f, 0.0f, 0.0f,
+        -1.0f, 0.0f, 0.0f,
+        -1.0f, 0.0f, 0.0f,
+        -1.0f, 0.0f, 0.0f,
+
+        // front 16 - 19
+        0.0f, 0.0, -1.0f,
+        0.0f, 0.0, -1.0f,
+        0.0f, 0.0, -1.0f,
+        0.0f, 0.0, -1.0f,
+
+        //back 20 - 23
+        0.0f, 0.0f, 1.0f,
+        0.0f, 0.0f, 1.0f,
+        0.0f, 0.0f, 1.0f,
+        0.0f, 0.0f, 1.0f
+    };
+
+
+    std::vector<uint32_t> indices = {
         // right side
         0, 1, 2,
         2, 1, 3,
@@ -494,30 +549,37 @@ Model::Pointer buildCube()
     };
 
 
-    Primitive primitive;
-    primitive.indexStart = 0;
-    primitive.vertexStart = 0;
-    primitive.vertexCount = static_cast<uint32_t>(geometry->vertices.size());
-    primitive.indexCount =  static_cast<uint32_t>(geometry->indices.size());
+    Mesh mesh;
+    mesh.m_vertexBuffer = std::make_shared<Buffer>();
+    mesh.m_indexBuffer = std::make_shared<Buffer>();
 
-    mesh.primitives.push_back(primitive);
+    Buffer::Pointer &vertexBuffer = mesh.m_vertexBuffer;
+    vertexBuffer->setData(reinterpret_cast<uint8_t const *>(&positions[0]),
+                          sizeof(float) * positions.size());
 
-    std::shared_ptr<Layout> layout = std::make_shared<Layout>();
-    layout->setAttribute(Slots::POSITION, 3, sizeof(Vertex), 0);
-    layout->setAttribute(Slots::NORMAL, 3, sizeof(Vertex), (unsigned int) offsetof(Vertex, normal));
-    layout->setAttribute(Slots::TEXCOORD, 2, sizeof(Vertex),
-                         (unsigned int) offsetof(Vertex,texCoord));
+    vertexBuffer->appendData(reinterpret_cast<uint8_t const *>(&normals[0]),
+                             sizeof(float) * normals.size());
 
-    geometry->vertexBuffer = std::make_shared<Buffer>(Buffer::ARRAY, geometry->vertices.size()
-                                                      * sizeof(Vertex), geometry->vertices.size(),
-                                                      geometry->vertices.data());
-    geometry->vertexBuffer->setLayout(layout);
-    geometry->indexBuffer = std::make_shared<Buffer>(Buffer::ELEMENT, geometry->indices.size()
-                                                     * sizeof(int), geometry->indices.size(),
-                                                     geometry->indices.data());
-    geometry->meshes.push_back(mesh);
+    mesh.m_indexBuffer->setData(reinterpret_cast<uint8_t const*>(&indices[0]),
+                                sizeof(uint32_t) * indices.size());
 
-    return geometry;
+    SubMesh subMesh;
+
+    subMesh.m_startIndex = 0;
+    subMesh.m_numIndices = indices.size();
+    subMesh.m_materialIndex = 0;
+    mesh.m_subMeshes.push_back(subMesh);
+
+    Attribute positionAttribute(Slot::Position, {Type::Float, Dimension::Vec3}, 0);
+    Attribute normalAttribute(Slot::Normal, {Type::Float, Dimension::Vec3}, positions.size());
+    mesh.m_attributes = {
+        positionAttribute,
+        normalAttribute
+    };
+
+    model->m_meshes.push_back(mesh);
+
+    return model;
 }
 
 
@@ -527,45 +589,67 @@ Model::Pointer buildQuad()
 {
     Model::Pointer model  = std::make_shared<Model>();
 
-    Mesh mesh;
+    // Mesh mesh;
 
-    model->vertices = {
-        Vertex(glm::vec3(-1.0f, 1.0f, 0.0f), glm::vec3(0.0f), glm::vec2(0.0f, 1.0f)),
-        Vertex(glm::vec3(-1.0f, -1.0f, 0.0f), glm::vec3(0.0), glm::vec2(0.0f, 0.0f)),
-        Vertex(glm::vec3(1.0, 1.0f, 0.0f), glm::vec3(0.0f), glm::vec2(1.0f, 1.0f)),
-        Vertex(glm::vec3(1.0f, -1.0f, 0.0f), glm::vec3(0.0f), glm::vec2(1.0f, 0.0f))
+    std::array<float, 12> constexpr positions {
+        -1.0f, 1.0f, 0.0f,
+        -1.0f, -1.0f, 0.0f,
+        1.0f, 1.0f, 0.0f,
+        1.0f, -1.0f, 0.0f
     };
 
-    model->indices = {
+    std::array<float, 12> constexpr normals {
+        0.0f, 0.0f, 0.0f,
+        0.0f, 0.0f, 0.0f,
+        0.0f, 0.0f, 0.0f
+    };
+
+    std::array<float, 8> constexpr texCoords {
+        0.0f, 1.0f,
+        0.0f, 0.0f,
+        1.0f, 1.0f,
+        1.0f, 0.0f
+    };
+
+    std::array<uint32_t, 6> constexpr indices = {
         0, 1, 2,
         1, 2, 3
     };
 
-    Primitive primitive;
-    primitive.indexStart = 0;
-    primitive.vertexStart = 0;
-    primitive.vertexCount = static_cast<uint32_t>(model->vertices.size());
-    primitive.indexCount =  static_cast<uint32_t>(model->indices.size());
-    primitive.materialIndex = 0;
+    Mesh mesh;
+    mesh.m_vertexBuffer = std::make_shared<Buffer>();
+    mesh.m_indexBuffer = std::make_shared<Buffer>();
 
-    mesh.primitives.push_back(primitive);
+    Buffer::Pointer &vertexBuffer = mesh.m_vertexBuffer;
+    vertexBuffer->setData(reinterpret_cast<uint8_t const *>(&positions[0]),
+                          sizeof(float) * positions.size());
 
-     std::shared_ptr<Layout> layout = std::make_shared<Layout>();
-    layout->setAttribute(Slots::POSITION, 3, sizeof(Vertex), 0);
-    layout->setAttribute(Slots::NORMAL, 3, sizeof(Vertex), (unsigned int) offsetof(Vertex, normal));
-    layout->setAttribute(Slots::TEXCOORD, 2, sizeof(Vertex),
-                         (unsigned int) offsetof(Vertex,texCoord));
+    vertexBuffer->appendData(reinterpret_cast<uint8_t const *>(&normals[0]),
+                             sizeof(float) * normals.size());
 
-    model->vertexBuffer = std::make_shared<Buffer>(Buffer::ARRAY, model->vertices.size() *
-                                                   sizeof(Vertex), model->vertices.size(),
-                                                   model->vertices.data());
-    model->vertexBuffer->setLayout(layout);
-    model->indexBuffer = std::make_shared<Buffer>(Buffer::ELEMENT, model->indices.size()
-                                                  * sizeof(int), model->indices.size(),
-                                                  model->indices.data());
+    vertexBuffer->appendData(reinterpret_cast<uint8_t const *>(&texCoords[0]),
+                             sizeof(float) * texCoords.size());
 
-    model->meshes.push_back(mesh);
+    mesh.m_indexBuffer->setData(reinterpret_cast<uint8_t const*>(&indices[0]),
+                                sizeof(uint32_t) * indices.size());
 
+    SubMesh subMesh;
+    subMesh.m_startIndex = 0;
+    subMesh.m_numIndices = 6;
+    subMesh.m_materialIndex = 0;
+    mesh.m_subMeshes.push_back(subMesh);
+
+    Attribute positionAttribute(Slot::Position, {Type::Float, Dimension::Vec3}, 0);
+    Attribute normalAttribute(Slot::Normal, {Type::Float, Dimension::Vec3}, positions.size());
+    Attribute texCoordAttribute(Slot::TexCoord, {Type::Float, Dimension::Vec2},
+                                normalAttribute.m_offset + normals.size());
+    mesh.m_attributes = {
+        positionAttribute,
+        normalAttribute,
+        texCoordAttribute
+    };
+
+    model->m_meshes.push_back(mesh);
     return model;
 }
 
@@ -588,7 +672,7 @@ Model::Pointer ModelCache::loadModel(std::string const &file)
 
     Model::Pointer model = nullptr;
 
-    model = loadGLTFModel(file);
+    model = loadModelFromFile(file);
     m_models[file] = model;
     return model;
 }
