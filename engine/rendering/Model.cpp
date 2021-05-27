@@ -172,6 +172,8 @@ Mesh processMesh(tinygltf::Model &model, tinygltf::Mesh& gltfMesh)
                     std::cout << "UNSUPPORTED TYPE: " << indexAccessor.componentType << std::endl;
             }
             subMesh.m_numIndices = static_cast<uint32_t>(indexAccessor.count);
+        } else {
+            spdlog::debug("No indices!!!!!!!");
         }
         subMesh.m_materialIndex = primitive.material;
         mesh.m_subMeshes.push_back(subMesh);

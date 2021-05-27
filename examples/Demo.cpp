@@ -166,42 +166,13 @@ void rotateCameraAroundEntity(Entity const &entity, float deltaTime)
     camera.orientation = glm::quat(glm::radians(glm::vec3(0.0f, yawOffset, 0.0f)));
     camera.position = entity.translation + ((camera.orientation * UNIT_Z) * -4.0f);
 }
-struct MarkerVertex
-{
-    MarkerVertex(glm::vec3 pos, glm::vec3 col) : position(pos), color(col) {}
-    glm::vec3 position;
-    glm::vec3 color;
-};
-
-DebugDraw::DebugDraw()
-{
-}
-
-void DebugDraw::renderMarkers(std::vector<Marker> const  &markers, glm::mat4 const &view,
-                              glm::mat4 const &projection)
-{
-
-    // m_vertexBuffer->bind();
-    // m_vertexBuffer->getLayout()->enableAttributes();
-    // m_debugPipeline->bind();
-    // m_debugPipeline->setUniformMat4("view", view);
-    // m_debugPipeline->setUniformMat4("projection", projection);
-    // for (auto marker : markers)
-    // {
-    //     glm::mat4 model = marker.matrix;
-    //     m_debugPipeline->setUniformMat4("model", model);
-    //     glDrawArrays(GL_LINES, 0, 6);
-    // }
-}
-
-
 
 DemoApplication::DemoApplication()
 {
     glewExperimental = true;
     if (glewInit() != GLEW_OK)
     {
-        "Failed to init glew";
+        spdlog::debug("Failed to init glew");
     }
 
     glGenVertexArrays(1, &VAO);
@@ -338,8 +309,6 @@ void renderModelEntity(RenderArgs const &renderArgs, Backend *backend)
 
             glDrawElements(GL_TRIANGLES, (GLsizei) subMesh.m_numIndices, GL_UNSIGNED_INT,
                            (void*) (subMesh.m_startIndex * sizeof(GLuint)));
-
-            auto error = glGetError();
         }
     }
 }
@@ -348,12 +317,12 @@ std::vector<Marker> getMarkers(RenderArgs const &renderArgs) {
     Marker light;
     Entity temp;
     temp.translation = renderArgs.light.position;
-    light.matrix = getMatrix(temp);
+    light.m_matrix = getMatrix(temp);
 
     std::vector<Marker> markers;
     auto entity = renderArgs.modelEntity;
     Marker entityMarker;
-    entityMarker.matrix = getMatrix(entity, false) * entity.model->meshes[0].matrix;
+    entityMarker.m_matrix = getMatrix(entity, false) * entity.model->m_meshes[0].m_matrix;
     markers.push_back(entityMarker);
     markers.push_back(light);
 
@@ -361,7 +330,7 @@ std::vector<Marker> getMarkers(RenderArgs const &renderArgs) {
 }
 
 
-void drawSkybox(Skybox const &skybox, RenderArgsconst const &renderArgs, Backend* backend)
+void drawSkybox(Skybox const &skybox, RenderArgs const &renderArgs, Backend* backend)
 {
     glDepthMask(GL_FALSE);
     auto shader = skybox.shader;
@@ -392,22 +361,14 @@ void DemoApplication::exec()
 	glEnable(GL_DEPTH_TEST);
 	glEnable(GL_PROGRAM_POINT_SIZE);
 	glEnable(GL_LINE_SMOOTH);
-    auto currentTime = std::chrono::steady_clock::now();
-    auto previousTime = currentTime;
+
+
+    Clock clock;
 
     while (!m_window->shouldClose())
     {
-        currentTime = std::chrono::steady_clock::now();
-
-
-        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(currentTime
-                                                                             - previousTime);
-
-        previousTime = currentTime;
-        float deltaTime = (float) elapsed.count() / 1000.0f;
-
+        auto deltaTime = clock.getDeltaTime();
         m_window->simpleUpdate();
-        float f = 0.0f;
         mouse->update();
         if (!m_debugUI->getRotateCamera()) {
             if (!m_debugUI->focus() && !m_debugUI->getRotateCamera())
@@ -429,19 +390,14 @@ void DemoApplication::exec()
         glm::mat4 projection = glm::perspective(glm::radians(60.0f), (float) m_window->getWidth()
                                                 / (float) m_window->getHeight(), 0.3f, 700.0f);
 
-
-        auto compileShader = [&] {
-            m_pipeline = std::make_shared<Shader> (fragmentShader, vertexShader);
-        };
-
         auto loadNewModel = [&](std::string path, bool useModel) {
             m_modelEntity.model = nullptr;
             if (useModel)
             {
-                m_modelEntity.model = std::move(m_modelCache->loadModel(path));
+                m_modelEntity.model = m_modelCache->loadModel(path);
             } else
             {
-                m_modelEntity.model = std::move(m_modelCache->getModelShape(ModelShape::Sphere));
+                m_modelEntity.model = m_modelCache->getModelShape(ModelShape::Sphere);
             }
         };
 
@@ -450,9 +406,7 @@ void DemoApplication::exec()
             m_window->resetWindowSize();
         };
 
-        m_debugUI->show(m_modelEntity, m_light, deltaTime, [&] {
-            m_pipeline = std::make_shared<Shader> (fragmentShader, vertexShader);
-        }, loadNewModel, genEnv);
+        m_debugUI->show(m_modelEntity, m_light, deltaTime, loadNewModel, genEnv);
 
         RenderArgs renderArgs;
         renderArgs.view = view;
@@ -482,7 +436,6 @@ unsigned int DemoApplication::generateEnviromentMap()
     unsigned int textureId;
 
     unsigned int frameBuffer;
-    unsigned int renderBuffer;
     glGenFramebuffers(1, &frameBuffer);
     glBindFramebuffer(GL_FRAMEBUFFER, frameBuffer);
     glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, 0);
@@ -527,7 +480,6 @@ unsigned int DemoApplication::generateEnviromentMap()
                                GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, textureId, 0);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        //renderCube();
         auto& model = m_skybox.model;
         auto& mesh = model->m_meshes[0];
         auto& subMesh = mesh.m_subMeshes[0];

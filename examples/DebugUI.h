@@ -13,7 +13,8 @@ class DebugUI
 public:
     DebugUI(std::shared_ptr<Window> const &window);
     ~DebugUI();
-    void show(Entity &entity, Light &light, float deltaTime, std::function<void()> compileShader, std::function<void(std::string, bool)> loadNewModel,
+    void show(Entity &entity, Light &light, float deltaTime,
+              std::function<void(std::string, bool)> loadNewModel,
               std::function<void(std::string)> generateIBLEnvironments);
     bool focus();
     std::string getModelPath() const { return m_path; }

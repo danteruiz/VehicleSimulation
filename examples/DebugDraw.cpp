@@ -3,6 +3,7 @@
 #include "Backend.h"
 #include "Buffer.h"
 #include "Layout.h"
+#include "Shader.h"
 
 #include <cstdint>
 
@@ -27,7 +28,7 @@ DebugDraw::DebugDraw()
         0.0f, 0.0f, 1.0f
     };
 
-    m_vertexBuffer = std::shared_ptr<Buffer>();
+    m_vertexBuffer = std::make_shared<Buffer>();
 
     m_vertexBuffer->setData(reinterpret_cast<uint8_t const *>(&positions[0]),
                            sizeof(float) * positions.size());
@@ -46,6 +47,16 @@ DebugDraw::DebugDraw()
 
 
 void DebugDraw::renderMarkers(std::vector<Marker> const& marker, glm::mat4 const &view,
-                              glm::mat4 const &projection, Backend const *backend) {
-    
+                              glm::mat4 const &projection, Backend *backend) {
+
+    backend->setVertexBuffer(m_vertexBuffer);
+    backend->enableAttributes(m_attributes);
+
+    m_debugPipeline->bind();
+    m_debugPipeline->setUniformMat4("view", view);
+    m_debugPipeline->setUniformMat4("projection", projection);
+    for (auto const &marker: m_makers)
+    {
+        
+    }
 }

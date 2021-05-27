@@ -25,7 +25,6 @@ DebugUI::~DebugUI()
 }
 
 void DebugUI::show(Entity &entity, Light &light, float deltaTime,
-                   std::function<void()> compileShader,
                    std::function<void(std::string, bool)> loadNewModel,
                    std::function<void(std::string)> generateIBLEnvironments)
 {
@@ -37,12 +36,7 @@ void DebugUI::show(Entity &entity, Light &light, float deltaTime,
     imgui::newFrame();
     ImGui::Begin("DebugUI");
 
-
     ImGui::Text("deltaTime: %.6f", deltaTime);
-
-    /*if (ImGui::Button("Recompile PBR Shader")) {
-        compileShader();
-        }*/
 
     ImGui::Separator();
     ImGui::Text("Camera");
@@ -154,7 +148,7 @@ void DebugUI::show(Entity &entity, Light &light, float deltaTime,
         ImGui::SliderFloat("ao", &material->ao, 0.0f, 1.0f);
     }
     ImGui::End();
-};
+}
 
 bool DebugUI::focus()
 {

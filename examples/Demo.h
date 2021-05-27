@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "Entity.h"
+#include "DebugDraw.h"
 
 
 #include <Skybox.h>
@@ -17,6 +18,8 @@ class DebugUI;
 class Shader;
 class ModelCache;
 class Backend;
+class DebugDraw;
+struct Marker;
 
 class DemoApplication : public GlfwApplication
 {
@@ -30,12 +33,9 @@ private:
     Light m_light;
     Entity m_modelEntity;
     Skybox m_skybox;
-
-
-    // std::shared_ptr<shader::Pipeline> m_pbr 
+    std::vector<Light> m_lights;
     std::shared_ptr<ModelCache> m_modelCache;
     std::shared_ptr<DebugUI> m_debugUI;
-    std::vector<Light> m_lights;
     std::shared_ptr<Shader> m_pipeline { nullptr };
     std::shared_ptr<Shader> m_irradiance { nullptr };
     std::shared_ptr<Shader> m_convertToCubeMap { nullptr };

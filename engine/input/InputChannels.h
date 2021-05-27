@@ -30,7 +30,7 @@ namespace controller
         DPAD_DOWN,
         DPAD_LEFT
     };
-};
+}
 
 namespace glfw
 {
@@ -135,4 +135,4 @@ namespace glfw
         KEY_RIGHT_CONTROL,
         KEY_RIGHT_ALT,
     };
-};
+}
